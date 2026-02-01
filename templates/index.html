@@ -744,10 +744,10 @@
             const words = paragraphText.trim().split(/\s+/);
             const lastWord = words.length > 0 ? words[words.length - 1] : '';
             
-            // Check if this is the same word (avoid duplicates)
-            if (lastWord && lastWord.toLowerCase() === text.toLowerCase()) {
-                return;
-            }
+            // // Check if this is the same word (avoid duplicates)
+            // if (lastWord && lastWord.toLowerCase() === text.toLowerCase()) {
+            //     return;
+            // }
             
             // Check if text ends with punctuation
             const endsWithPunctuation = /[.!?,;:]$/.test(text);
