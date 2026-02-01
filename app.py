@@ -11,6 +11,8 @@ import copy
 import itertools
 import string
 import json
+import time
+from collections import Counter
 
 # Fix Windows console encoding for Unicode characters
 if platform.system() == 'Windows':
@@ -239,16 +241,33 @@ def open_camera():
         cap = cv2.VideoCapture(0)
 
     if cap.isOpened():
+        # Set camera properties for better compatibility
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        cap.set(cv2.CAP_PROP_FPS, 30)
+        
+        # Try reading a few test frames to ensure camera is working
+        for i in range(5):
+            ret, frame = cap.read()
+            if ret and frame is not None and frame.size > 0:
+                print(f"[OK] Camera test frame {i+1}/5 successful")
+                time.sleep(0.1)
+            else:
+                print(f"[WARNING] Camera test frame {i+1}/5 failed")
+                time.sleep(0.2)
+        
+        # Final validation with latest frame
         ret, frame = cap.read()
-        if ret and frame is not None:
+        if ret and frame is not None and frame.size > 0:
             print("[OK] Camera opened successfully at index 0")
             return cap
         else:
-            print("[WARNING] Camera opened but no frames received.")
+            print("[WARNING] Camera opened but frames are invalid")
             cap.release()
-
-    print("[ERROR] Could not access camera at index 0")
-    return None
+            return None
+    else:
+        print("[ERROR] Could not open camera at index 0")
+        return None
 
 
 # ----------------------------------------------------
@@ -404,6 +423,13 @@ def generate_frames():
     prediction_skip_frames = 3  # Process prediction every 3rd frame (reduce TensorFlow overhead)
     last_prediction = None
     last_confidence = 0.0
+    
+    # Temporal smoothing for stable predictions
+    prediction_history = []  # Store last N predictions
+    HISTORY_SIZE = 5  # Number of frames to check for consistency
+    CONSISTENCY_THRESHOLD = 0.6  # 60% of frames must agree (3 out of 5)
+    MIN_CONFIDENCE = 0.75  # Minimum confidence to consider a prediction
+    last_emitted_prediction = None  # Last prediction sent to frontend
 
     # ----------------------------------------------------
     #   FRAME LOOP
@@ -413,7 +439,14 @@ def generate_frames():
             ret, frame = cap.read()
 
             if not ret or frame is None:
-                print("[WARNING] Could not read frame.")
+                print("[WARNING] Failed to read frame from camera")
+                time.sleep(0.1)  # Longer delay to allow camera to recover
+                continue
+            
+            # Validate frame shape and data
+            if frame.size == 0 or len(frame.shape) != 3:
+                print("[WARNING] Invalid frame shape received")
+                time.sleep(0.1)
                 continue
 
             frame = cv2.flip(frame, 1)
@@ -452,6 +485,11 @@ def generate_frames():
                     data_aux = []
                     x_ = []
                     y_ = []
+                    
+                    # Get hand chirality (Left or Right)
+                    is_left_hand = False
+                    if hand_idx < len(hand_labels):
+                        is_left_hand = (hand_labels[hand_idx] == 'Left')
 
                     # Draw landmarks on frame
                     mp_drawing.draw_landmarks(
@@ -463,7 +501,7 @@ def generate_frames():
                     )
 
                     # --------------------------
-                    #  SKELETON MODEL FEATURES
+                    #  SKELETON MODEL FEATURES (with chirality correction)
                     # --------------------------
                     # Extract x and y coordinates for this hand
                     for lm in hand_landmarks.landmark:
@@ -473,9 +511,17 @@ def generate_frames():
                     # Normalize coordinates relative to this hand's bounding box
                     if len(x_) > 0 and len(y_) > 0:
                         min_x = min(x_)
+                        max_x = max(x_)
                         min_y = min(y_)
+                        
+                        # For left hands, mirror X coordinates so they look like right hands
                         for lm in hand_landmarks.landmark:
-                            data_aux.append(lm.x - min_x)
+                            if is_left_hand:
+                                # Mirror: flip x around center of hand bounding box
+                                mirrored_x = max_x - (lm.x - min_x)
+                                data_aux.append(mirrored_x - min_x)
+                            else:
+                                data_aux.append(lm.x - min_x)
                             data_aux.append(lm.y - min_y)
                         
                         skeleton_features_list.append(data_aux)
@@ -523,6 +569,7 @@ def generate_frames():
                 # -------------------------------------
                 #  GET PREDICTIONS FROM BOTH MODELS (using combined features)
                 # Run on prediction frames for balance between speed and accuracy
+                # Prioritizes Keras model (trained on your Indian Sign Language dataset)
                 # -------------------------------------
                 if should_predict and combined_skeleton_features and combined_keras_features:
                     skeleton_pred, skeleton_conf = predict_with_skeleton_model(combined_skeleton_features)
@@ -546,12 +593,26 @@ def generate_frames():
                         })
                         if num_hands_detected > 1 and frame_count % 30 == 0:  # Log less frequently
                             print(f"  Combined prediction from {num_hands_detected} hands: {predicted_character} (conf: {confidence:.2f})")
+
+                    # Store prediction (combined for all hands)
+                    if predicted_character is not None:
+                        last_prediction = predicted_character
+                        last_confidence = confidence
+                        all_predictions.append({
+                            'character': predicted_character,
+                            'confidence': confidence,
+                            'model': model_used,
+                            'hand_label': 'Combined' if num_hands_detected > 1 else hand_labels[0] if hand_labels else 'Hand',
+                            'bbox': hand_bboxes[0] if hand_bboxes else (0, 0, 0, 0)
+                        })
+                        if num_hands_detected > 1 and frame_count % 30 == 0:  # Log less frequently
+                            print(f"  Combined prediction from {num_hands_detected} hands: {predicted_character} (conf: {confidence:.2f})")
                 elif last_prediction is not None:
                     # Between prediction frames, use the last prediction
                     all_predictions.append({
                         'character': last_prediction,
                         'confidence': last_confidence,
-                        'model': 'ISL-Skeleton',
+                        'model': 'ISL-Keras',
                         'hand_label': 'Combined' if num_hands_detected > 1 else hand_labels[0] if hand_labels else 'Hand',
                         'bbox': hand_bboxes[0] if hand_bboxes else (0, 0, 0, 0)
                     })
@@ -615,20 +676,70 @@ def generate_frames():
             # Since we combine features from all hands, we have one prediction
             if all_predictions and len(all_predictions) > 0:
                 single_prediction = all_predictions[0]
-                # Get num_hands_detected from the frame processing
-                hands_count = len(results.multi_hand_landmarks) if results.multi_hand_landmarks else 0
-                socketio.emit(
-                    'prediction',
-                    {
-                        'text': single_prediction['character'], 
-                        'confidence': float(single_prediction['confidence']),
-                        'model': single_prediction['model'],
-                        'num_hands': hands_count
-                    }
-                )
+                predicted_char = single_prediction['character']
+                pred_confidence = single_prediction['confidence']
+                
+                # Only consider predictions with high enough confidence
+                if pred_confidence >= MIN_CONFIDENCE:
+                    # Add to prediction history
+                    prediction_history.append(predicted_char)
+                    
+                    # Keep only last N predictions
+                    if len(prediction_history) > HISTORY_SIZE:
+                        prediction_history.pop(0)
+                    
+                    # Check if we have enough history to make a decision
+                    if len(prediction_history) >= HISTORY_SIZE:
+                        # Count occurrences of each prediction
+                        counts = Counter(prediction_history)
+                        most_common_pred, count = counts.most_common(1)[0]
+                        
+                        # Check if the most common prediction meets consistency threshold
+                        consistency_ratio = count / len(prediction_history)
+                        
+                        if consistency_ratio >= CONSISTENCY_THRESHOLD:
+                            # Only emit if it's different from last emitted (avoid spam)
+                            if most_common_pred != last_emitted_prediction:
+                                hands_count = len(results.multi_hand_landmarks) if results.multi_hand_landmarks else 0
+                                try:
+                                    socketio.emit(
+                                        'prediction',
+                                        {
+                                            'text': most_common_pred, 
+                                            'confidence': float(pred_confidence),
+                                            'model': single_prediction['model'],
+                                            'num_hands': hands_count,
+                                            'stability': f'{consistency_ratio*100:.0f}%'
+                                        }
+                                    )
+                                    last_emitted_prediction = most_common_pred
+                                    print(f"[STABLE] Emitted: {most_common_pred} (stability: {consistency_ratio*100:.0f}%)")
+                                except Exception as ws_error:
+                                    print(f"[WARNING] WebSocket emit error: {ws_error}")
+                else:
+                    # Low confidence - likely transitioning, clear history
+                    if len(prediction_history) > 0:
+                        print(f"[TRANSITION] Low confidence ({pred_confidence:.2f}), clearing history")
+                        prediction_history.clear()
+            else:
+                # No hands detected - clear history
+                if len(prediction_history) > 0:
+                    prediction_history.clear()
+            
+            # Visual feedback for stability
+            if len(prediction_history) > 0:
+                stability = len(set(prediction_history)) == 1  # All predictions same = stable
+                stability_text = f"Stability: {len(prediction_history)}/{HISTORY_SIZE}"
+                color = (0, 255, 0) if stability else (0, 165, 255)
+                cv2.putText(frame, stability_text, (10, 30), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
             # Encode frame
-            ret, buffer = cv2.imencode('.jpg', frame)
+            ret_encode, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            if not ret_encode or buffer is None:
+                print("[WARNING] Failed to encode frame")
+                continue
+                
             frame_bytes = buffer.tobytes()
 
             yield (b'--frame\r\n'
