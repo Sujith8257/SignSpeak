@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <title>SignSpeak – Real-time Indian Sign Language Recognition</title>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <meta content="SignSpeak turns Indian Sign Language gestures into text and speech in real time. Try it in your browser."
+        name="description" />
+
+    <!-- Google Web Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --primary-dark: #1e40af;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --bg-light: #f8fafc;
+            --text-dark: #1e293b;
+            --text-light: #64748b;
+            --border-color: #e2e8f0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'Poppins', sans-serif;
+            background: var(--bg-light);
+            color: var(--text-dark);
+            overflow-x: hidden;
+        }
+
+        /* Header (matches app header style) */
+        .landing-header {
+            background: white;
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+
+        .logo span {
+            color: var(--primary-color);
+        }
+
+        .nav-cta {
+            background: var(--primary-color);
+            color: white !important;
+            padding: 0.65rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+        }
+
+        .nav-cta:hover {
+            background: var(--primary-dark);
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25);
+        }
+
+        /* Hero */
+        .hero {
+            padding: 4rem 1.5rem 3rem;
+        }
+
+        .hero-inner {
+            background: white;
+            border-radius: 24px;
+            border: 1px solid var(--border-color);
+            padding: 2.5rem 2.25rem;
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.06);
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: #ecfdf5;
+            color: var(--success-color);
+            padding: 0.35rem 0.9rem;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            border: 1px solid #bbf7d0;
+        }
+
+        .hero-title {
+            font-family: 'Poppins', sans-serif;
+            font-size: clamp(2.1rem, 4vw, 3rem);
+            font-weight: 800;
+            line-height: 1.15;
+            margin-bottom: 1rem;
+            letter-spacing: -0.02em;
+        }
+
+        .hero-title span {
+            color: var(--primary-color);
+        }
+
+        .hero-lead {
+            font-size: 1.05rem;
+            color: var(--text-light);
+            max-width: 520px;
+            margin-bottom: 1.75rem;
+            line-height: 1.7;
+        }
+
+        .hero-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            background: var(--primary-color);
+            color: white;
+            padding: 0.9rem 1.8rem;
+            border-radius: 14px;
+            font-weight: 700;
+            font-size: 1rem;
+            text-decoration: none;
+            border: none;
+            transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+        }
+
+        .hero-cta:hover {
+            background: var(--primary-dark);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 12px 28px rgba(37, 99, 235, 0.35);
+        }
+
+        .hero-tagline {
+            margin-top: 0.75rem;
+            font-size: 0.9rem;
+            color: var(--text-light);
+        }
+
+        .hero-preview-card {
+            background: #0f172a;
+            border-radius: 20px;
+            padding: 1.75rem 1.5rem;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-preview-card::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.35), transparent 55%);
+            opacity: 0.9;
+            pointer-events: none;
+        }
+
+        .hero-preview-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-preview-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .hero-preview-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.75rem;
+            padding: 0.25rem 0.7rem;
+            border-radius: 999px;
+            background: rgba(22, 163, 74, 0.18);
+            border: 1px solid rgba(34, 197, 94, 0.6);
+        }
+
+        .hero-preview-screen {
+            background: rgba(15, 23, 42, 0.9);
+            border-radius: 14px;
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            padding: 0.75rem 0.9rem;
+            font-size: 0.78rem;
+            line-height: 1.5;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Features */
+        .features {
+            padding: 1rem 1.5rem 3.5rem;
+        }
+
+        .section-title {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .section-title h2 {
+            font-family: 'Poppins', sans-serif;
+            font-size: clamp(1.7rem, 3vw, 2.2rem);
+            font-weight: 700;
+            margin-bottom: 0.4rem;
+        }
+
+        .section-title p {
+            color: var(--text-light);
+            font-size: 0.98rem;
+        }
+
+        .feature-card {
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.8rem 1.6rem;
+            height: 100%;
+            transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+        }
+
+        .feature-card:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+        }
+
+        .feature-card .icon {
+            width: 46px;
+            height: 46px;
+            background: rgba(37, 99, 235, 0.08);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        .feature-card h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 0.4rem;
+        }
+
+        .feature-card p {
+            color: var(--text-light);
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        /* Dataset section */
+        .dataset-section {
+            padding: 0 1.5rem 3.5rem;
+        }
+
+        .dataset-card {
+            background: white;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            padding: 2rem 2rem 2.5rem;
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.05);
+        }
+
+        .dataset-card h3 {
+            font-family: 'Poppins', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .dataset-card p {
+            color: var(--text-light);
+            font-size: 0.95rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .dataset-img-wrapper {
+            border-radius: 14px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            background: #020617;
+        }
+
+        .dataset-img-wrapper img {
+            width: 100%;
+            display: block;
+        }
+
+        /* CTA block */
+        .cta-block {
+            padding: 0 1.5rem 3.5rem;
+        }
+
+        .cta-block-inner {
+            max-width: 720px;
+            margin: 0 auto;
+            background: linear-gradient(135deg, #2563eb, #1e40af);
+            border-radius: 20px;
+            padding: 2.75rem 2.5rem;
+            color: white;
+            text-align: center;
+            box-shadow: 0 16px 40px rgba(37, 99, 235, 0.35);
+        }
+
+        .cta-block h2 {
+            font-family: 'Poppins', sans-serif;
+            font-size: clamp(1.6rem, 3vw, 2rem);
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+        }
+
+        .cta-block p {
+            font-size: 0.98rem;
+            opacity: 0.9;
+            margin-bottom: 1.5rem;
+        }
+
+        .cta-block .hero-cta {
+            background: white;
+            color: var(--primary-dark);
+        }
+
+        .cta-block .hero-cta:hover {
+            background: #e5edff;
+        }
+
+        /* Footer */
+        .landing-footer {
+            padding: 2rem 1.5rem 2.5rem;
+            text-align: center;
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+
+        .landing-footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        .landing-footer a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .hero-inner {
+                padding: 1.75rem 1.5rem;
+            }
+
+            .dataset-card {
+                padding: 1.75rem 1.5rem 2rem;
+            }
+
+            .cta-block-inner {
+                padding: 2.25rem 1.75rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="landing-header">
+        <div class="container-fluid px-4 d-flex justify-content-between align-items-center">
+            <a href="/" class="logo">
+                <i class="fas fa-hands"></i>
+                <span>SignSpeak</span>
+            </a>
+            <a class="nav-cta" href="/app">
+                <i class="fas fa-play"></i>
+                Try it now
+            </a>
+        </div>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-inner">
+                <div class="row align-items-center g-4">
+                    <div class="col-lg-6">
+                        <div class="hero-badge">
+                            <i class="fas fa-hand-paper"></i>
+                            Indian Sign Language · A–Z · 1–9
+                        </div>
+                        <h1 class="hero-title">
+                            Turn sign language into <span>text &amp; speech</span> in real time.
+                        </h1>
+                        <p class="hero-lead">
+                            SignSpeak uses your camera and AI-powered models trained on an Indian Sign Language
+                            dataset to recognize hand gestures and convert them into readable text and clear speech,
+                            directly in your browser.
+                        </p>
+                        <a class="hero-cta" href="/app">
+                            <i class="fas fa-video"></i>
+                            Open SignSpeak
+                        </a>
+                        <div class="hero-tagline">
+                            No installs. Runs on top of Flask, MediaPipe, and TensorFlow in real time.
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="hero-preview-card">
+                            <div class="hero-preview-header">
+                                <div class="hero-preview-title">
+                                    Live recognition preview
+                                </div>
+                                <div class="hero-preview-status">
+                                    <i class="fas fa-circle" style="color:#22c55e;"></i>
+                                    Models ready
+                                </div>
+                            </div>
+                            <div class="hero-preview-screen">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="text-uppercase" style="letter-spacing: 0.06em;">Camera feed</span>
+                                    <span style="font-size:0.7rem;color:#9ca3af;">WebSocket · MJPEG stream</span>
+                                </div>
+                                <div class="mb-2" style="font-size:0.78rem;color:#e5e7eb;">
+                                    Place your hand in front of the webcam and make ISL gestures. SignSpeak combines a
+                                    landmark-based Keras model and a RandomForest skeleton model to pick the most
+                                    confident prediction for every frame.
+                                </div>
+                                <div style="font-size:0.78rem;color:#9ca3af;">
+                                    • Real-time inference using MediaPipe hand landmarks<br />
+                                    • Temporal smoothing for stable characters and spaces<br />
+                                    • Optional text-to-speech for the full translated sentence
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="features">
+        <div class="container">
+            <div class="section-title">
+                <h2>Built for accessibility and ease of use</h2>
+                <p>Everything runs in your browser with a simple Flask backend and live WebSocket updates.</p>
+            </div>
+            <div class="row g-4">
+                <div class="col-md-6 col-lg-4">
+                    <div class="feature-card">
+                        <div class="icon">
+                            <i class="fas fa-bolt"></i>
+                        </div>
+                        <h3>Real-time recognition</h3>
+                        <p>
+                            Stream webcam frames to the backend using an MJPEG feed and receive predictions via
+                            Socket.IO with minimal latency, even on CPU-only machines.
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-4">
+                    <div class="feature-card">
+                        <div class="icon">
+                            <i class="fas fa-hands"></i>
+                        </div>
+                        <h3>One or two hands</h3>
+                        <p>
+                            MediaPipe detects up to two hands. Features from both are combined so the models can
+                            understand single-hand and two-hand ISL gestures, including a palm gesture for space.
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-4">
+                    <div class="feature-card">
+                        <div class="icon">
+                            <i class="fas fa-volume-up"></i>
+                        </div>
+                        <h3>From text to speech</h3>
+                        <p>
+                            The web client collects recognized characters into words and sentences, then uses the
+                            browser’s speech synthesis to read them aloud with adjustable playback speed.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Dataset overview -->
+    <section class="dataset-section">
+        <div class="container">
+            <div class="dataset-card">
+                <h3>Indian Sign Language dataset – all 35 classes</h3>
+                <p>
+                    SignSpeak is trained on an Indian Sign Language dataset with 35 classes covering digits
+                    1–9 and letters A–Z. Each class contains multiple examples captured under consistent lighting
+                    and background conditions, enabling robust, real-time recognition.
+                </p>
+                <div class="dataset-img-wrapper">
+                    <img src="{{ url_for('static', filename='images/class.png') }}"
+                    alt="Indian Sign Language Dataset - All 35 Classes" />
+
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Call to action -->
+    <section class="cta-block">
+        <div class="container">
+            <div class="cta-block-inner">
+                <h2>Ready to try SignSpeak?</h2>
+                <p>
+                    Allow your browser to access the camera, stand in front of the frame, and start signing.
+                    The live app shows every recognized gesture, builds sentences for you, and can speak them out loud.
+                </p>
+                <a class="hero-cta" href="/app">
+                    <i class="fas fa-video"></i>
+                    Launch live recognition
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="landing-footer">
+        <p>
+            SignSpeak – Indian Sign Language Recognition ·
+            <a href="/app">Open the web app</a>
+        </p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

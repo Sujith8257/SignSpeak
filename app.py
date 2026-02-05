@@ -205,7 +205,14 @@ verify_model_metadata_matches_alphabet()
 
 
 @app.route('/')
+def lander():
+    """Public landing page with marketing content; links through to /app."""
+    return render_template('lander.html')
+
+
+@app.route('/app')
 def index():
+    """Main SignSpeak application UI."""
     return render_template('index.html')
 
 

@@ -936,7 +936,47 @@
             }
         }
 
-        // Speak All button
+        // Helper: speak text word‑by‑word instead of one long utterance
+        function speakTextByWords(text) {
+            const words = text.split(/\s+/).filter(w => w.length > 0);
+            if (words.length === 0) return;
+
+            speechSynthesis.cancel();
+
+            const rate = parseFloat(document.getElementById('speedSelect').value);
+            const voices = speechSynthesis.getVoices();
+            const preferredVoice = voices.find(voice =>
+                voice.name.includes('English') &&
+                (voice.name.includes('Female') || voice.name.includes('US'))
+            ) || voices.find(voice => voice.lang.startsWith('en')) || voices[0];
+
+            let index = 0;
+
+            const speakNext = () => {
+                if (index >= words.length) return;
+
+                const utterance = new SpeechSynthesisUtterance(words[index]);
+                utterance.rate = rate;
+                utterance.pitch = 1.0;
+                utterance.volume = 1.0;
+
+                if (preferredVoice) {
+                    utterance.voice = preferredVoice;
+                }
+
+                utterance.onend = () => {
+                    index += 1;
+                    // Small pause between words
+                    setTimeout(speakNext, 120);
+                };
+
+                speechSynthesis.speak(utterance);
+            };
+
+            speakNext();
+        }
+
+        // Speak All button (word‑by‑word)
         document.getElementById('speakAllButton').addEventListener('click', function() {
             const allText = paragraphText.trim();
             
@@ -945,23 +985,7 @@
                 return;
             }
             
-            speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(allText);
-            utterance.rate = parseFloat(document.getElementById('speedSelect').value);
-            utterance.pitch = 1.0;
-            utterance.volume = 1.0;
-            
-            const voices = speechSynthesis.getVoices();
-            const preferredVoice = voices.find(voice => 
-                voice.name.includes('English') && 
-                (voice.name.includes('Female') || voice.name.includes('US'))
-            ) || voices.find(voice => voice.lang.startsWith('en')) || voices[0];
-            
-            if (preferredVoice) {
-                utterance.voice = preferredVoice;
-            }
-            
-            speechSynthesis.speak(utterance);
+            speakTextByWords(allText);
         });
 
         // Pause button
