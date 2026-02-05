@@ -15,7 +15,8 @@ This document describes the **Indian Sign Language (ISL)** recognition project i
 7. [Project Structure](#7-project-structure)
 8. [API Reference](#8-api-reference)
 9. [Configuration & Paths](#9-configuration--paths)
-10. [Troubleshooting](#10-troubleshooting)
+10. [Docker Deployment](#10-docker-deployment)
+11. [Troubleshooting](#11-troubleshooting)
 
 ---
 
@@ -160,6 +161,24 @@ Prediction is run only every **N-th frame** (e.g. every 3rd) to reduce CPU/Tenso
 
 ### 5.1 Running the Application
 
+#### Option A: Docker Deployment (Recommended for Easy Setup)
+
+1. **Prerequisites:** Docker and Docker Compose installed.
+
+2. **Place model file:**
+   - Copy `indian_sign_model.h5` to `./model/` directory.
+
+3. **Build and run:**
+   ```bash
+   docker-compose up --build
+   ```
+
+4. **Access:** Open http://localhost:5000 in your browser.
+
+See **DOCKER.md** for detailed Docker deployment instructions, camera access setup, and troubleshooting.
+
+#### Option B: Local Python Installation
+
 1. **Environment:**  
    - Python 3.8+.  
    - Create and activate venv, then:
@@ -241,13 +260,17 @@ After training, point `app.py` at these files (see [Configuration & Paths](#9-co
 
 ```
 sign-to-text-and-speech/
-├── app.py                    # Main Flask app: camera, MediaPipe, both models, WebSocket, MJPEG
+├── app.py                    # Main Flask app: camera, MediaPipe, Keras model, WebSocket, MJPEG
 ├── train_indian_model.py     # Dataset load, feature extraction, Keras + RandomForest training
 ├── profile_models.py         # Inference-time profiling (skeleton vs Keras)
 ├── requirements.txt         # Pip dependencies (Flask, OpenCV, MediaPipe, TensorFlow, etc.)
 ├── requirements_venv.txt    # Alternative/full venv snapshot
 ├── README.md                 # User-facing overview and quick start
 ├── DOCUMENTATION.md          # This file
+├── DOCKER.md                 # Docker deployment guide
+├── Dockerfile                # Docker image definition
+├── docker-compose.yml        # Docker Compose configuration
+└── .dockerignore             # Files excluded from Docker build
 ├── templates/
 │   └── index.html            # Single-page UI: video, Socket.IO, text area, TTS, Clear
 ├── model/                    # Not in git (large/binary); expected contents:
@@ -324,7 +347,45 @@ sign-to-text-and-speech/
 
 ---
 
-## 10. Troubleshooting
+## 10. Docker Deployment
+
+For easy deployment on any system, SignSpeak can be run using Docker. This eliminates the need to install Python dependencies manually.
+
+### Quick Start
+
+1. **Place model file** in `./model/indian_sign_model.h5`
+
+2. **Build and run:**
+   ```bash
+   docker-compose up --build
+   ```
+
+3. **Access:** http://localhost:5000
+
+### Files Created
+
+- **Dockerfile**: Multi-stage build with system dependencies for OpenCV and MediaPipe
+- **docker-compose.yml**: Easy orchestration with camera access and volume mounts
+- **.dockerignore**: Excludes unnecessary files from Docker build context
+- **DOCKER.md**: Complete Docker deployment guide
+
+### Key Features
+
+- **Camera access**: Configured for Linux (`/dev/video0`), Windows, and macOS
+- **Model mounting**: Models mounted as volumes (no rebuild needed to update)
+- **Health checks**: Built-in container health monitoring
+- **Resource limits**: Configurable CPU/memory limits
+- **Production-ready**: Optimized for deployment
+
+See **DOCKER.md** for:
+- Detailed setup instructions for each platform
+- Camera access troubleshooting
+- Production deployment recommendations
+- Advanced configuration options
+
+---
+
+## 11. Troubleshooting
 
 | Issue | What to check |
 |-------|----------------|

@@ -1,0 +1,101 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Large dataset (optional - comment out if you want to include dataset in image)
+Indian/
+
+# Logs
+*.log
+logs/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+*.tmp
+*.temp
+*.cache
+.cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Machine Learning / Data Science (large files)
+*.csv
+*.parquet
+*.feather
+*.hdf5
+data/
+datasets/
+wandb/
+mlruns/
+.neptune/
+.mlflow/
+
+# Keep model files - they should be mounted or copied separately
+# Uncomment if you want to exclude models from image (recommended)
+# model/*.h5
+# model/*.p
+# model/*.pkl
+# model/*.pickle
+
+# But keep metadata
+!model/model_metadata.json

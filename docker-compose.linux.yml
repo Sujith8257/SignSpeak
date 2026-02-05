@@ -1,0 +1,55 @@
+# Docker Compose for LINUX hosts with CAMERA ACCESS
+# Use this file on Linux machines where you want webcam to work
+#
+# Usage:
+#   docker-compose -f docker-compose.linux.yml up --build
+#
+# Before running, check your camera device:
+#   ls -la /dev/video*
+# If your camera is /dev/video1 instead of /dev/video0, update the devices section below.
+
+services:
+  signspeak:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: signspeak-app
+    ports:
+      - "5000:5000"
+    
+    # Camera access for Linux - map /dev/video0 into the container
+    devices:
+      - /dev/video0:/dev/video0
+    
+    # Alternative: map all video devices (useful if you have multiple cameras)
+    # devices:
+    #   - /dev/video0:/dev/video0
+    #   - /dev/video1:/dev/video1
+    
+    # Grant access to video group (for camera permissions)
+    group_add:
+      - video
+    
+    # Mount model directory
+    volumes:
+      - ./model:/app/model:ro
+      - ./checkpoints:/app/checkpoints:ro
+    
+    # Environment variables
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+      - DOCKER_CONTAINER=true
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M

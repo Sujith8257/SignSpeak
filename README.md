@@ -371,6 +371,15 @@ The system uses an ensemble approach:
 - If both models agree, confidence is boosted
 - Supports both single-hand and two-hand gestures
 
+### Run on Another Windows PC
+
+To run the project on a **different Windows computer** (e.g. copy folder to USB and run there):
+
+- **With Docker:** Copy the project folder (including `model/indian_sign_model.h5`), install [Docker Desktop](https://www.docker.com/products/docker-desktop/) on the other PC, then double-click **`run-with-docker.bat`** or run `docker-compose up --build`. Open http://localhost:5000. *(Note: webcam may not work inside Docker on Windows.)*
+- **With Python (camera works):** Copy the folder, install Python 3.11 on the other PC, then run **`run-with-python.bat`** (or create venv, `pip install -r requirements.txt`, `python app.py`). Open http://localhost:5000.
+
+See **[RUN-ON-ANOTHER-PC.md](RUN-ON-ANOTHER-PC.md)** for step-by-step instructions and what to copy.
+
 ### Command Line Options
 
 Currently, the application runs with default settings. Future versions may include:

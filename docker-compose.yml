@@ -1,0 +1,48 @@
+# SignSpeak Docker Compose
+# 
+# CAMERA ACCESS:
+# - LINUX:   Use docker-compose.linux.yml instead (camera works)
+#            docker-compose -f docker-compose.linux.yml up --build
+# - WINDOWS: Camera does NOT work in Docker (Windows cameras aren't exposed to Linux containers)
+#            Use "python app.py" directly on Windows for camera access
+#
+# This file is for Windows/Mac or when camera is not needed (e.g., testing UI)
+
+services:
+  signspeak:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: signspeak-app
+    ports:
+      - "5000:5000"
+    
+    # Linux camera access: use docker-compose.linux.yml instead
+    # devices:
+    #   - /dev/video0:/dev/video0
+    # group_add:
+    #   - video
+    
+    # Optional: mount model directory if you want to persist models outside container
+    volumes:
+      - ./model:/app/model:ro
+      - ./checkpoints:/app/checkpoints:ro
+    
+    # Environment variables
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+      - DOCKER_CONTAINER=true
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Resource limits (optional, adjust based on your system)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M

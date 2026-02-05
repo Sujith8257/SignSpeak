@@ -229,22 +229,47 @@ def handle_connect():
 # ----------------------------------------------------
 def open_camera():
     is_windows = platform.system().lower() == "windows"
+    is_docker = os.path.exists('/.dockerenv') or os.environ.get('DOCKER_CONTAINER') == 'true'
     
-    # Try to use CAP_DSHOW on Windows if available, otherwise use default
-    backend = None
-    if is_windows:
+    # Try multiple backends in order of preference
+    backends_to_try = []
+    
+    if is_windows and not is_docker:
+        # Native Windows: try DirectShow first
         try:
-            backend = cv2.CAP_DSHOW
+            backends_to_try.append(cv2.CAP_DSHOW)
         except AttributeError:
-            # CAP_DSHOW not available, use default backend
-            backend = None
+            pass
+        try:
+            backends_to_try.append(cv2.CAP_MSMF)
+        except AttributeError:
+            pass
+    elif is_docker:
+        # Docker: try V4L2 (Linux) or MSMF if available
+        try:
+            backends_to_try.append(cv2.CAP_V4L2)
+        except AttributeError:
+            pass
+        try:
+            backends_to_try.append(cv2.CAP_MSMF)
+        except AttributeError:
+            pass
     
-    print("Trying to open camera at index 0 using backend:", backend if backend is not None else "default")
-
-    if backend is not None:
-        cap = cv2.VideoCapture(0, backend)
-    else:
-        cap = cv2.VideoCapture(0)
+    # Always try default backend as fallback
+    backends_to_try.append(None)
+    
+    # Try each backend until one works
+    for backend in backends_to_try:
+        backend_name = "CAP_DSHOW" if backend == cv2.CAP_DSHOW else \
+                      "CAP_MSMF" if backend == cv2.CAP_MSMF else \
+                      "CAP_V4L2" if backend == cv2.CAP_V4L2 else \
+                      "default"
+        print(f"Trying to open camera at index 0 using backend: {backend_name}")
+        
+        if backend is not None:
+            cap = cv2.VideoCapture(0, backend)
+        else:
+            cap = cv2.VideoCapture(0)
 
     if cap.isOpened():
         # Set camera properties for better compatibility
@@ -789,4 +814,11 @@ if __name__ == '__main__':
     print(f"TensorFlow/Keras: {'[OK] Available' if TENSORFLOW_AVAILABLE else '[ERROR] Not Installed'}")
     print("="*50 + "\n")
     
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True, allow_unsafe_werkzeug=True)
+    # Disable debug mode in Docker for security
+    is_docker = os.environ.get('DOCKER_CONTAINER', 'false').lower() == 'true'
+    debug_mode = not is_docker  # Debug only when NOT in Docker
+    
+    print(f"Running in Docker: {is_docker}")
+    print(f"Debug mode: {debug_mode}\n")
+    
+    socketio.run(app, host='0.0.0.0', port=5000, debug=debug_mode, allow_unsafe_werkzeug=True)
