@@ -561,6 +561,12 @@
                         <span id="statusText">Active</span>
                     </span>
                 </div>
+                <div>
+                    <a href="{{ url_for('logout') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Logout
+                    </a>
+                </div>
             </div>
         </div>
     </header>
@@ -602,13 +608,6 @@
                 </div>
             </div>
 
-            <div style="display: flex; gap: 1rem; align-items: center;">
-                <button class="practice-mode-btn">
-                    <i class="fas fa-graduation-cap"></i>
-                    Practice Mode
-                </button>
-            </div>
-
             <div class="lighting-warning hidden" id="lightingWarning">
                 <div>
                     <i class="fas fa-lightbulb"></i>
@@ -625,7 +624,6 @@
         <div class="text-panel">
             <div class="panel-tabs">
                 <button class="tab-btn active" onclick="switchTab('live')">Live</button>
-                <button class="tab-btn" onclick="switchTab('manual')">Manual</button>
             </div>
 
             <div class="panel-controls">

@@ -12,6 +12,7 @@ import itertools
 import string
 import json
 import time
+import sqlite3
 from collections import Counter
 
 # Fix Windows console encoding for Unicode characters
@@ -32,8 +33,19 @@ import numpy as np
 import pandas as pd
 from tensorflow import keras
 
-from flask import Flask, render_template, Response, request, jsonify
+from flask import (
+    Flask,
+    render_template,
+    Response,
+    request,
+    jsonify,
+    redirect,
+    url_for,
+    session,
+    g,
+)
 from flask_socketio import SocketIO, emit
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # -----------------------------
 #  SUPPRESS WARNINGS
@@ -64,6 +76,53 @@ except ImportError:
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
 socketio = SocketIO(app, cors_allowed_origins="*")
+
+# -----------------------------
+#   AUTH / DATABASE (SQLite)
+# -----------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATABASE_PATH = os.path.join(BASE_DIR, "app.db")
+
+
+def get_db():
+    """Get a SQLite connection for the current request."""
+    if "db" not in g:
+        g.db = sqlite3.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES)
+        g.db.row_factory = sqlite3.Row
+    return g.db
+
+
+@app.teardown_appcontext
+def close_db(exception):
+    db = g.pop("db", None)
+    if db is not None:
+        db.close()
+
+
+def init_db():
+    """Create users table if it does not exist."""
+    db = sqlite3.connect(DATABASE_PATH)
+    try:
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+@app.before_request
+def load_logged_in_user():
+    """Expose logged-in user info on g for templates/routes."""
+    g.user_id = session.get("user_id")
+    g.user_email = session.get("user_email")
 
 # -----------------------------
 #   MODEL PATHS
@@ -210,9 +269,91 @@ def lander():
     return render_template('lander.html')
 
 
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    """Simple email/password signup page."""
+    if g.user_id:
+        return redirect(url_for('index'))
+
+    error = None
+    if request.method == 'POST':
+        email = (request.form.get('email') or '').strip().lower()
+        password = request.form.get('password') or ''
+        confirm = request.form.get('confirm_password') or ''
+
+        if not email or not password:
+            error = "Email and password are required."
+        elif len(password) < 6:
+            error = "Password must be at least 6 characters long."
+        elif password != confirm:
+            error = "Passwords do not match."
+        else:
+            db = get_db()
+            cur = db.execute("SELECT id FROM users WHERE email = ?", (email,))
+            existing = cur.fetchone()
+            if existing:
+                error = "An account with this email already exists. Please sign in."
+            else:
+                password_hash = generate_password_hash(password)
+                db.execute(
+                    "INSERT INTO users (email, password_hash) VALUES (?, ?)",
+                    (email, password_hash),
+                )
+                db.commit()
+                # Log the user in
+                cur = db.execute("SELECT id FROM users WHERE email = ?", (email,))
+                row = cur.fetchone()
+                session['user_id'] = row['id']
+                session['user_email'] = email
+                next_url = request.args.get('next') or url_for('index')
+                return redirect(next_url)
+
+    return render_template('signup.html', error=error)
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Simple email/password login page."""
+    if g.user_id:
+        return redirect(url_for('index'))
+
+    error = None
+    if request.method == 'POST':
+        email = (request.form.get('email') or '').strip().lower()
+        password = request.form.get('password') or ''
+
+        if not email or not password:
+            error = "Email and password are required."
+        else:
+            db = get_db()
+            cur = db.execute(
+                "SELECT id, email, password_hash FROM users WHERE email = ?", (email,)
+            )
+            user = cur.fetchone()
+            if not user or not check_password_hash(user['password_hash'], password):
+                error = "Invalid email or password."
+            else:
+                session['user_id'] = user['id']
+                session['user_email'] = user['email']
+                next_url = request.args.get('next') or url_for('index')
+                return redirect(next_url)
+
+    return render_template('login.html', error=error)
+
+
+@app.route('/logout')
+def logout():
+    """Log the user out and send them to the landing page."""
+    session.clear()
+    return redirect(url_for('lander'))
+
+
 @app.route('/app')
 def index():
-    """Main SignSpeak application UI."""
+    """Main SignSpeak application UI (requires login)."""
+    if not g.user_id:
+        # Preserve where the user wanted to go
+        return redirect(url_for('login', next=request.path))
     return render_template('index.html')
 
 
@@ -827,5 +968,8 @@ if __name__ == '__main__':
     
     print(f"Running in Docker: {is_docker}")
     print(f"Debug mode: {debug_mode}\n")
+
+    # Ensure auth database exists before serving requests
+    init_db()
     
     socketio.run(app, host='0.0.0.0', port=5000, debug=debug_mode, allow_unsafe_werkzeug=True)
