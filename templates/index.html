@@ -70,6 +70,48 @@
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            text-decoration: none;
+        }
+
+        .logo span {
+            color: var(--primary-color);
+        }
+
+        .header-auth-links {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .header-auth-link {
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-decoration: none;
+            border-radius: 999px;
+            padding: 0.45rem 1rem;
+            border: 1px solid var(--border-color);
+            color: var(--text-dark);
+            background: #f9fafb;
+            transition: background 0.2s, color 0.2s, box-shadow 0.2s, border-color 0.2s;
+        }
+
+        .header-auth-link.primary {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+            color: #fff;
+        }
+
+        .header-auth-link:hover {
+            border-color: var(--primary-dark);
+            background: #e5edff;
+            color: var(--primary-dark);
+            box-shadow: 0 4px 10px rgba(37, 99, 235, 0.18);
+        }
+
+        .header-auth-link.primary:hover {
+            background: var(--primary-dark);
+            border-color: var(--primary-dark);
+            color: #fff;
         }
 
         .status-badge {
@@ -552,14 +594,33 @@
         <div class="container-fluid px-4">
             <div class="d-flex justify-content-between align-items-center">
                 <div class="logo-section">
-                    <div class="logo">
+                    <a href="{{ url_for('lander') }}" class="logo">
                         <i class="fas fa-hands"></i>
                         <span>SignSpeak</span>
-                    </div>
+                    </a>
                     <span class="status-badge" id="statusBadge">
                         <i class="fas fa-circle"></i>
                         <span id="statusText">Active</span>
                     </span>
+                </div>
+                <div class="header-auth-links">
+                    {% if g.user_id %}
+                        <span class="header-auth-link" style="cursor: default;">
+                            <i class="fas fa-user me-1"></i>
+                            {{ g.user_name or g.user_email }}
+                        </span>
+                        <a href="{{ url_for('logout') }}" class="header-auth-link primary">
+                            <i class="fas fa-right-from-bracket me-1"></i>
+                            Logout
+                        </a>
+                    {% else %}
+                        <a href="{{ url_for('login') }}" class="header-auth-link">
+                            Login
+                        </a>
+                        <a href="{{ url_for('signup') }}" class="header-auth-link primary">
+                            Sign up
+                        </a>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -625,7 +686,6 @@
         <div class="text-panel">
             <div class="panel-tabs">
                 <button class="tab-btn active" onclick="switchTab('live')">Live</button>
-                <button class="tab-btn" onclick="switchTab('manual')">Manual</button>
             </div>
 
             <div class="panel-controls">
@@ -932,11 +992,23 @@
             }
         }
 
+        const pauseButton = document.getElementById('pauseButton');
+
+        function setPauseButtonState(isPaused) {
+            if (!pauseButton) return;
+            pauseButton.innerHTML = isPaused
+                ? '<i class="fas fa-play"></i>'
+                : '<i class="fas fa-pause"></i>';
+            pauseButton.title = isPaused ? 'Resume' : 'Pause';
+            pauseButton.setAttribute('aria-label', isPaused ? 'Resume' : 'Pause');
+        }
+
         // Helper: speak text as complete words (not letter by letter)
         function speakText(text) {
             if (!text || text.trim().length === 0) return;
 
             speechSynthesis.cancel();
+            setPauseButtonState(false);
 
             const rate = parseFloat(document.getElementById('speedSelect').value);
             const voices = speechSynthesis.getVoices();
@@ -951,6 +1023,8 @@
             utterance.rate = rate;
             utterance.pitch = 1.0;
             utterance.volume = 1.0;
+            utterance.onend = () => setPauseButtonState(false);
+            utterance.onerror = () => setPauseButtonState(false);
 
             if (preferredVoice) {
                 utterance.voice = preferredVoice;
@@ -971,20 +1045,26 @@
             speakText(allText);
         });
 
-        // Pause button
-        document.getElementById('pauseButton').addEventListener('click', function() {
+        // Pause/Resume button (toggle icon reliably)
+        pauseButton?.addEventListener('click', function() {
+            if (speechSynthesis.paused) {
+                speechSynthesis.resume();
+                setPauseButtonState(false);
+                return;
+            }
+
             if (speechSynthesis.speaking) {
                 speechSynthesis.pause();
-                this.innerHTML = '<i class="fas fa-play"></i>';
-            } else if (speechSynthesis.paused) {
-                speechSynthesis.resume();
-                this.innerHTML = '<i class="fas fa-pause"></i>';
+                setPauseButtonState(true);
+                return;
             }
         });
 
         // Clear button
         document.getElementById('clearButton').addEventListener('click', function() {
             if (confirm('Clear all recognized text?')) {
+                speechSynthesis.cancel();
+                setPauseButtonState(false);
                 clearParagraph();
             }
         });

@@ -12,6 +12,8 @@ import itertools
 import string
 import json
 import time
+import csv
+from datetime import datetime
 from collections import Counter
 
 # Fix Windows console encoding for Unicode characters
@@ -32,7 +34,17 @@ import numpy as np
 import pandas as pd
 from tensorflow import keras
 
-from flask import Flask, render_template, Response, request, jsonify
+from flask import (
+    Flask,
+    render_template,
+    Response,
+    request,
+    jsonify,
+    redirect,
+    url_for,
+    session,
+    g,
+)
 from flask_socketio import SocketIO, emit
 
 # -----------------------------
@@ -64,6 +76,67 @@ except ImportError:
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
 socketio = SocketIO(app, cors_allowed_origins="*")
+
+# -----------------------------
+#   AUTH / LOCAL CSV STORAGE
+# -----------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+USERS_CSV_PATH = os.path.join(BASE_DIR, "users.csv")
+
+
+def ensure_users_csv_exists():
+    """Ensure users.csv exists with a header row."""
+    if not os.path.exists(USERS_CSV_PATH):
+        with open(USERS_CSV_PATH, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["id", "username", "email", "password_hash", "created_at"])
+
+
+def load_users_from_csv():
+    """Load all users from users.csv as a list of dicts."""
+    ensure_users_csv_exists()
+    users = []
+    with open(USERS_CSV_PATH, "r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if row.get("email"):
+                users.append(row)
+    return users
+
+
+def save_users_to_csv(users):
+    """Write the full users list back to users.csv."""
+    with open(USERS_CSV_PATH, "w", newline="", encoding="utf-8") as f:
+        fieldnames = ["id", "username", "email", "password_hash", "created_at"]
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for user in users:
+            writer.writerow(
+                {
+                    "id": user.get("id"),
+                    "username": user.get("username", ""),
+                    "email": user.get("email"),
+                    "password_hash": user.get("password_hash"),
+                    "created_at": user.get("created_at"),
+                }
+            )
+
+
+def get_user_by_email_from_csv(email):
+    """Return a single user dict from CSV by email, or None."""
+    users = load_users_from_csv()
+    for user in users:
+        if (user.get("email") or "").lower() == email.lower():
+            return user
+    return None
+
+
+@app.before_request
+def load_logged_in_user():
+    """Expose logged-in user info on g for templates/routes."""
+    g.user_id = session.get("user_id")
+    g.user_email = session.get("user_email")
+    g.user_name = session.get("user_name")
 
 # -----------------------------
 #   MODEL PATHS
@@ -243,9 +316,98 @@ def lander():
     return render_template('lander.html')
 
 
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    """Simple email/password signup page."""
+    if g.user_id:
+        return redirect(url_for('index'))
+
+    error = None
+    if request.method == 'POST':
+        username = (request.form.get('username') or '').strip()
+        email = (request.form.get('email') or '').strip().lower()
+        password = request.form.get('password') or ''
+        confirm = request.form.get('confirm_password') or ''
+
+        if not username or not email or not password:
+            error = "Name, email and password are required."
+        elif len(password) < 6:
+            error = "Password must be at least 6 characters long."
+        elif password != confirm:
+            error = "Passwords do not match."
+        else:
+            existing = get_user_by_email_from_csv(email)
+            if existing:
+                error = "An account with this email already exists. Please sign in."
+            else:
+                users = load_users_from_csv()
+                existing_ids = [int(u.get("id") or 0) for u in users if (u.get("id") or "").isdigit()]
+                next_id = (max(existing_ids) + 1) if existing_ids else 1
+                from werkzeug.security import generate_password_hash
+
+                password_hash = generate_password_hash(password)
+                created_at = datetime.utcnow().isoformat()
+                users.append(
+                    {
+                        "id": str(next_id),
+                        "username": username,
+                        "email": email,
+                        "password_hash": password_hash,
+                        "created_at": created_at,
+                    }
+                )
+                save_users_to_csv(users)
+
+                session['user_id'] = next_id
+                session['user_email'] = email
+                session['user_name'] = username
+                next_url = request.args.get('next') or url_for('index')
+                return redirect(next_url)
+
+    return render_template('signup.html', error=error)
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Simple email/password login page."""
+    if g.user_id:
+        return redirect(url_for('index'))
+
+    error = None
+    if request.method == 'POST':
+        email = (request.form.get('email') or '').strip().lower()
+        password = request.form.get('password') or ''
+
+        if not email or not password:
+            error = "Email and password are required."
+        else:
+            from werkzeug.security import check_password_hash
+
+            user = get_user_by_email_from_csv(email)
+            if not user or not check_password_hash(user.get('password_hash') or '', password):
+                error = "Invalid email or password."
+            else:
+                session['user_id'] = int(user.get('id') or 0)
+                session['user_email'] = user.get('email')
+                session['user_name'] = user.get('username', '')
+                next_url = request.args.get('next') or url_for('index')
+                return redirect(next_url)
+
+    return render_template('login.html', error=error)
+
+
+@app.route('/logout')
+def logout():
+    """Log the user out and send them to the landing page."""
+    session.clear()
+    return redirect(url_for('lander'))
+
+
 @app.route('/app')
 def index():
-    """Main SignSpeak application UI."""
+    """Main SignSpeak application UI (requires login)."""
+    if not g.user_id:
+        return redirect(url_for('login', next=request.path))
     return render_template('index.html')
 
 
